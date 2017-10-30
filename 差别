@@ -1,0 +1,642 @@
+sp_InserUpdateDel_User_PermissionGroup  增删权限组  mark  = 4
+
+--权限组，
+ALTER PROCEDURE [dbo].[sp_InserUpdateDel_User_PermissionGroup]
+(
+	-- 1 添加 2 修改 3 删除     4-- srq  添加权限组 
+	@mark INT,
+	--权限组名字
+	@groupName VARCHAR(20),
+	--权限组UUID
+	@groupClass VARCHAR(50),  
+	--权限组状态
+	@groupStatus int,
+	--创建人
+	@createUser varchar(20),
+	@compid varchar(20)
+)
+AS
+BEGIN
+  
+	if @mark = 1 
+	begin
+		insert into User_PermissionGroup ( groupName,groupClass,groupStatus,createTime,createUser,updateTime,compid ) values ( @groupName, @groupClass,1,GETDATE(),@createUser,GETDATE(),@compid)
+		if @@rowcount >0
+			begin
+			select '添加权限组成功' result
+			end
+		ELSE
+			begin
+			select '添加权限组失败' result
+			end
+	end
+	else if @mark = 2
+	begin
+    update User_PermissionGroup set groupName = @groupName , groupStatus = @groupStatus , createUser = @createUser, updateTime = GETDATE(),compid = @compid  where groupClass = @groupClass   
+		if @@rowcount >0
+			begin
+			select '修改权限组成功' result
+			end
+		ELSE
+			begin
+			select '修改权限组失败' result
+			end
+	end
+	else if @mark = 3
+	begin
+		delete from User_PermissionGroupDetails where groupClass = @groupClass 
+		delete from User_PermissionGroup where id = @groupClass  
+		if @@rowcount >0
+			begin
+			select '删除权限组成功' result
+			end
+		ELSE
+			begin
+			select '删除权限组失败' result
+			end
+	end
+
+	if @mark = 4   -- srq  添加权限组
+	begin
+		declare  @nameno    VARCHAR(20) 
+		SELECT @nameno = groupname  from  User_PermissionGroup   where  groupName = @groupName
+		IF (ISNULL(@nameno, '') <> '')
+		BEGIN
+			SELECT '权限组名称重复,添加失败'  result
+			
+		END
+		ELSE
+		BEGIN
+			insert into User_PermissionGroup ( groupName,groupClass,groupStatus,createTime,createUser,updateTime,compid ) values ( @groupName, @groupClass,1,GETDATE(),@createUser,GETDATE(),@compid)
+			if @@rowcount >0
+				begin
+				select  id   result FROM  User_PermissionGroup   WHERE groupClass  =  @groupClass 
+				end
+			ELSE
+				begin
+				select '添加权限组失败' result
+				end
+		end
+END
+END
+
+
+
+-- 02 sp_Admin_Query_Comp   后台企业列表     mark =  1 加emptype  判断
+--后台管理企业
+-- exec   sp_Admin_Query_Comp  1 ,'03',null,0,10,1
+
+ALTER PROCEDURE [dbo].[sp_Admin_Query_Comp]
+( 
+	--标记 1 加载企业
+	@mark int,
+	--企业ID
+	@compid VARCHAR(20),
+	--企业名称	
+	@NAME varchar(20),
+	-- 当前页码
+	@currPage INTEGER,
+	-- 显示数据条数
+	@pageSize INTEGER ,
+
+	@emptype  INTEGER  = -1
+)
+AS
+
+
+declare @num int = @currPage*@PageSize+@PageSize  
+
+declare @numj  INTEGER=  @currPage*@PageSize +1
+declare @sqlv varchar(8000)
+declare @con varchar(8000)
+
+BEGIN
+if @mark = 1
+BEGIN
+set   @sqlv =   '   select top('+cast(@num as VARCHAR(100))+') *,row_number() over (ORDER BY updtime DESC) aID  from User_comp  where   RecStatus = 1    '  
+set   @con =   '  select count(1) recordCount from  User_comp where  RecStatus = 1       ' 
+							if   (@emptype = 2) 
+							BEGIN
+							set  @sqlv = @sqlv + '   and  compid = '''+@compid+'''  '
+							set  @con  = @con +'  and  compid =  '''+@compid+'''  '
+							end
+
+							if  ( ISNULL(@NAME, '') <> '')
+							BEGIN
+							set @sqlv =@sqlv  + '  and longname like  ''%'+@NAME+'%'' '
+							set @con  = @con +'  and longname like  ''%'+@NAME+'%'' '
+							END
+ 
+ 
+declare @a VARCHAR(8000) 
+set     @a = ' select  * from  ( '+@sqlv+' ) t  where  t.aID BETWEEN '+ cast( @numj as varchar(100) ) +'  and '+ cast( @num as varchar(100) )+'    '
+
+ 
+exec(@a)
+exec (@con)
+ 
+END
+
+-- 	begin
+-- 		select * from(
+-- 		select *,row_number() over (ORDER BY updtime DESC) aID  from User_comp 
+-- 				where   RecStatus = 1  
+-- 								  
+-- 								and      longname like '%' + @NAME +'%' or @NAME is null
+-- 								 
+-- 		) s WHERE s.aID > @currPage*@pageSize and s.aID <= @currPage*@pageSize+@pageSize 
+-- 
+-- 
+-- 
+-- 		select count(1) recordCount from  User_comp where longname like '%' + @NAME +'%' or @NAME is null
+-- 		
+-- 	 end
+	 else if @mark = 2
+	 begin
+			select * from User_comp where compid = @compid
+	 end
+	 
+--  	select LONGNAME,SHORTNAME,SHORTNAME,COMPTYPE,TEL,FAX,CONTACK,
+-- 	DIRECTOR,DMOTEL,FACNO,POSTID,ENAME,USEING,TAXRATE,TAXNUMBER,
+-- 	BUSNUMBER,CODERD,ROUNDBIT,row_number() over (ORDER BY updtime DESC) ID  from User_comp v
+END
+ 
+
+
+--03 sp_Admin_Employee_Query 后台用户列表 
+
+-- 
+-- exec exec  sp_Admin_Employee_Query 1,'01','郭',0,10,3,null
+
+--后台用户列表查询用户
+ALTER PROCEDURE [dbo].[sp_Admin_Employee_Query]
+(
+	--标记  1 模糊查询 empname
+	@mark INTEGER,
+	--企业id
+	@compid varchar(20),
+	--用户
+	@name varchar(20),
+	-- 当前页码
+	@currPage INTEGER,
+	-- 显示数据条数
+	@PageSize INTEGER ,   ---- 
+ -- 用户类型  2 企业管理员  3业务员   4 司机   5 工程名称   6  施工单位  
+  @emptypemark   VARCHAR(10)  ,
+  
+	@opid   VARCHAR(10) = ''    -- 查用户详情   没用用opid
+)
+AS
+
+  declare @num int = @currPage*@PageSize+@PageSize  
+  
+  declare @numj  INTEGER=  @currPage*@PageSize +1
+
+  declare @sqlv varchar(8000)
+
+  declare @con varchar(8000)
+
+	DECLARE @tem VARCHAR(8000)
+
+ 
+BEGIN
+ 
+if  ( @mark = 1 )    --  mark  = 1  更具用户类型查询用户
+ 
+			 BEGIN
+
+					set @sqlv = ' select top('+cast(@num as VARCHAR(100))+')  u.compid,u.OpId,empname,LoginName,GroupCode,emptype,securid,birthday,email,motel,u.contack,u.postid,u.addr,addr2,rdate,ldate,shortname,    row_number() over (ORDER BY 	createTime DESC) aID  
+													from User_employee u LEFT join User_comp uu on u.compid = uu.compid     
+													where   u.compid = '''+@compid+'''  and GroupCode is not null   '
+
+
+					set  @con = ' 	select count(1) recordCount  
+													from User_employee u LEFT join User_comp uu on u.compid = uu.compid    
+													where     u.compid = '''+@compid+'''  and  groupCode is not null   '
+		
+					---  创建临时表
+					set  @tem =  ' select top('+cast(@num as VARCHAR(100))+')  u.compid,u.OpId,empname,LoginName,GroupCode,emptype,securid,birthday,email,motel,u.contack,u.postid,u.addr,addr2,
+													rdate,ldate,shortname,   row_number() over (ORDER BY 	createTime DESC) aID  into ##temp 
+													from User_employee u LEFT join User_comp uu on u.compid = uu.compid    
+													where     u.compid = '''+@compid+'''  and GroupCode is not null '
+
+					if ( ISNULL(@emptypemark, '') <> '')  --  用户类型  更具用户类型查询用户时 加企业 不加用户类型 
+					BEGIN
+					set  @sqlv = @sqlv + ' and ( u.emptype = '''+@emptypemark+''' ) '
+					set  @con = @con + ' and   ( u.emptype = '''+@emptypemark +''' )  '
+					set  @tem = @tem + ' and  ( u.emptype = '''+@emptypemark +''' ) '
+					END
+			
+		 
+					if ( ISNULL(@name  , '')<>'')   --   用户名like  查询  
+					BEGIN
+					set  @sqlv = @sqlv + '  and ( empname like ''%'+@name+'%'' )  '
+					set  @con = @con + '  and ( empname like ''%'+@name+'%'' )  '
+					set  @tem = @tem + '  and ( empname like ''%'+@name+'%'' )  '
+					end
+ 
+		 
+					declare @a VARCHAR(8000) 
+					set    @a = ' select  * from  ( '+@sqlv+' ) t  where  t.aID BETWEEN '+ cast( @numj as varchar(100) ) +'  and '+ cast( @num as varchar(100) )+'    '	 
+					exec(@a)
+					exec (@con)
+							
+
+		      exec(@tem)   --- 创建##temp
+
+
+					--- 获取列表中的opid   根据 opid  和产来的compid  查询所属表中的所属关系的
+	        DECLARE  @StringValue VARCHAR(20) 
+
+										-- 创建游标
+										DECLARE MyCursor CURSOR
+
+										FOR SELECT  opid  FROM  ##temp
+										-- 打开游标
+										OPEN MyCursor
+
+										FETCH NEXT FROM MyCursor INTO @StringValue
+										WHILE @@FETCH_STATUS =0
+
+										BEGIN   ---   根据用户类型判断 关联的表 
+											SELECT @emptypemark = emptype from  User_employee  where  opid = @StringValue and compid=@compid  --  查询用户的  用户类型
+
+
+											IF (@emptypemark = 3 )   --- 业务员   SM_BUSINESSGROUP
+												BEGIN
+													SELECT  ua.id,u.compid ,u.opid ,salesmancode as code   ,ScaleName as name FROM  SM_BUSINESSGROUP sm  RIGHT  
+														join  User_ascription ua on   sm.salesmancode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+													where  u.opid = @StringValue and u.compid=@compid 
+												END 
+											ELSE
+											IF (@emptypemark = 4 )  --  4  VM_PERSONALINFO   司机泵工信息表
+											BEGIN
+												SELECT ua.id,u.compid ,u.opid,PersonalCode as code ,PersonalName as name FROM  VM_PERSONALINFO sm  RIGHT  join  User_ascription ua on   sm.PersonalCode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+												where  u.opid = @StringValue and u.compid=@compid 
+											END
+											ELSE
+											IF (@emptypemark = 5 )  --5 SM_EPPInfo   工程
+											BEGIN
+												SELECT ua.id,u.compid ,u.opid,EPPCode as code ,EPPName as name FROM  SM_EPPInfo sm  RIGHT  join  User_ascription ua on   sm.EPPCode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+												where  u.opid = @StringValue and u.compid=@compid 
+											END
+											ELSE
+											IF (@emptypemark = 6 )    --  6 SM_BuilderInfo  施工单位
+											BEGIN
+												SELECT ua.id,u.compid ,u.opid,buildercode as code ,buildername as name FROM  SM_BuilderInfo sm  RIGHT  join  User_ascription ua on   sm.buildercode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+												where  u.opid = @StringValue and u.compid=@compid 
+											END
+ 
+												 
+											FETCH NEXT FROM  MyCursor INTO @StringValue  -- 查找下个opid
+									 
+										END
+										 
+										CLOSE MyCursor --关闭游标
+										 
+										DEALLOCATE MyCursor --释放游标
+		
+ 
+					 
+						DROP TABLE ##temp   -- 删除临时表
+			END
+
+ if  (@mark  =  2 )  --   不能登录前台的普通用户 
+
+			BEGIN
+				 set @sqlv= '	select top('+cast(@num as VARCHAR(100))+')   u.compid,u.OpId,empname,LoginName,GroupCode,emptype,securid,birthday,email,motel,u.contack,u.postid,u.addr,addr2,rdate,ldate,shortname,  ua.id,ua.SaleCode, row_number() over (ORDER BY 	createTime DESC) aID  
+														from User_employee u LEFT join User_comp uu on u.compid = uu.compid  LEFT join User_ascription ua  on  u.opid = ua.opid and u.compid = ua.compid  
+														where     u.compid = '''+@compid+'''  and (   GroupCode is   null   or  emptype  not in   (1,2,3,4,5,6)   )  '
+				 set  @con = '  	select count(1) recordCount  
+															from User_employee u LEFT join User_comp uu on u.compid = uu.compid  LEFT join User_ascription ua  on  u.opid = ua.opid and u.compid = ua.compid  
+														where     u.compid = '''+@compid+'''  and (   GroupCode is   null   or  emptype  not in   (1,2,3,4,5,6)   )  '
+ 
+ 
+			  
+					set   @a = ' select  * from  ( '+@sqlv+' ) t  where  t.aID BETWEEN '+ cast( @numj as varchar(100) ) +'  and '+ cast( @num as varchar(100) )+'    '
+					exec(@a)
+					exec (@con)
+			END
+
+if  (@mark =  3 )  --  用户详细  ---  不用
+			BEGIN
+				IF (@emptypemark = 3 )   --- 业务员   SM_BUSINESSGROUP
+				BEGIN
+					SELECT ua.id,u.compid ,u.opid,salesmancode as code ,ScaleName FROM  SM_BUSINESSGROUP sm  RIGHT  join  User_ascription ua on   sm.salesmancode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+					where  u.opid = @opid and u.compid=@compid 
+				END
+
+				IF (@emptypemark = 4 )  --  4  VM_PERSONALINFO   司机泵工信息表
+				BEGIN
+					SELECT ua.id,u.compid ,u.opid,PersonalCode as code ,PersonalName FROM  VM_PERSONALINFO sm  RIGHT  join  User_ascription ua on   sm.PersonalCode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+					where  u.opid = @opid and u.compid=@compid 
+				END
+
+				IF (@emptypemark = 5 )  --5 SM_EPPInfo   工程
+				BEGIN
+					SELECT ua.id,u.compid ,u.opid,EPPCode as code ,EPPName FROM  SM_EPPInfo sm  RIGHT  join  User_ascription ua on   sm.EPPCode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+					where  u.opid = @opid and u.compid=@compid 
+				END
+
+				IF (@emptypemark = 6 )    --  6 SM_BuilderInfo  施工单位
+				BEGIN
+					SELECT ua.id,u.compid ,u.opid,buildercode as code ,buildername FROM  SM_BuilderInfo sm  RIGHT  join  User_ascription ua on   sm.buildercode = ua.SaleCode and sm.compid = ua.compid LEFT JOIN User_employee u on u.compid= ua.compid and  u.opid=ua.opid 
+
+					where  u.opid = @opid and u.compid=@compid 
+				END
+				
+		END
+
+END
+
+    
+
+
+--04 admin_user_add  添加用户下拉      mark = 123456    @PageSize*@currPage+1      mark = 2   PI_TypeCode  > @emptype  
+ 
+
+-- 企业用户的添加下拉
+ALTER  PROCEDURE   [dbo].[admin_user_add]   
+
+(
+
+@mark  INTEGER    ,  --  --- 1  加载所有企业      --  mark  顺序不能乱
+									 -----  2加载用户类型
+									 -- ---  3加载用户类型
+									 -- 4      司机泵工信息表 
+									 -- --5 SM_EPPInfo   工程
+									-- 6     施工单位
+@PageSize INTEGER ,  --分页长度
+@currPage integer ,  -- 当前页
+
+@compid  VARCHAR(10) , -- 所属企业
+@opid  varchar(10)  ,   -- opid  
+@aa  varchar(10)  = '11' ,
+
+@emptype  varchar(10) = ''   -- 登录后台用户的emptype  
+
+   
+)
+
+as  
+
+
+if @mark =1    --- 1  加载所有企业
+BEGIN
+ SELECT *FROM(
+ 
+
+select  compid,longname,shortname ,row_number() over (ORDER BY compid desc) ID  FROM User_comp
+ 
+)  s
+	where    s.ID BETWEEN  @PageSize*@currPage+1 and @PageSize*@currPage + @PageSize
+
+		SELECT count(1)  recordCount   FROM  User_comp   
+END		
+
+
+if @mark = 2   ---  2加载用户类型
+BEGIN
+ SELECT *FROM(
+select  PI_TypeName ,PI_TypeCode  ,row_number() over (ORDER BY PI_TypeCode  ) ID FROM DD_PublicInfo
+where PI_Class = '88'  and PI_TypeCode  > @emptype  
+)  s
+	where    s.ID BETWEEN @PageSize*@currPage+1 and @PageSize*@currPage + @PageSize
+
+		SELECT count(1)  recordCount   FROM  DD_PublicInfo DD_PublicInfo where PI_Class = '88'  and PI_TypeCode > @emptype  
+		
+end
+
+ 
+
+
+iF @mark  =3   -- 3 SM_BUSINESSGROUP  业务员 
+
+BEGIN 
+
+ SELECT *FROM(
+	SELECT compid, ScaleName ,salesmancode as code ,row_number() over (ORDER BY salesmancode DESC) ID   FROM SM_BUSINESSGROUP 
+	where compid = @compid   and  ( ScaleName  like '%'+@aa+'%' or @aa is null  )
+	
+	
+)  s
+	where    s.ID BETWEEN @PageSize*@currPage+1 and @PageSize*@currPage + @PageSize
+	
+		SELECT count(1)  recordCount   FROM  SM_BUSINESSGROUP   where compid = @compid  and  ( ScaleName  like '%'+@aa+'%' or @aa is null  )
+end 
+
+
+if  @mark  =4  -- 4  VM_PERSONALINFO   司机泵工信息表
+BEGIN 
+
+ SELECT *FROM(
+	SELECT compid , PersonalCode as code ,PersonalName   ,row_number() over (ORDER BY PersonalCode DESC) ID  FROM VM_PERSONALINFO    
+	where compid = @compid   and  ( PersonalName  like '%'+@aa+'%' or @aa is null  )
+	
+)  s
+	where    s.ID BETWEEN @PageSize*@currPage+1 and @PageSize*@currPage + @PageSize
+	
+	
+		SELECT count(1)  recordCount   FROM  VM_PERSONALINFO   where compid = @compid   and  ( PersonalName  like '%'+@aa+'%' or @aa is null  )
+
+END
+
+
+
+
+
+if   @mark = 5   --5 SM_EPPInfo   工程
+
+BEGIN 
+ SELECT *FROM(
+
+ SELECT compid ,EPPCode as code ,EPPName ,row_number() over (ORDER BY EPPCode DESC) ID   FROM  SM_EPPInfo  
+ where compid = @compid  and  ( EPPName  like '%'+@aa+'%' or @aa is null  )
+ 
+ 
+)  s
+	where    s.ID BETWEEN @PageSize*@currPage+1 and @PageSize*@currPage + @PageSize 
+	
+	
+		SELECT count(1)  recordCount   FROM  SM_EPPInfo   where compid = @compid  and  ( EPPName  like '%'+@aa+'%' or @aa is null  )
+END
+
+
+if  @mark = 6    --  6 SM_BuilderInfo  施工单位
+ 
+BEGIN 
+
+ SELECT *FROM(
+
+	SELECT    compid ,buildercode as code ,buildername ,row_number() over (ORDER BY BuilderCode DESC) ID   FROM  SM_BuilderInfo 
+	  where  compid  = @compid  and  ( buildername  like '%'+@aa+'%' or @aa is null  )
+
+)  s   where    s.ID  BETWEEN @PageSize*@currPage+1  and   @PageSize*@currPage + @PageSize
+	
+	SELECT count(1)  recordCount   FROM  SM_BuilderInfo  where  compid  = @compid    and  ( buildername  like '%'+@aa+'%' or @aa is null  )
+	 
+END
+
+
+
+
+
+
+
+
+--05 sp_check_User_employee  用户登录     @type= 1  u.emptype <> 1     @type = 2   u.emptype = 1 and u.emptype = 2            人员状态    and  RecStatus = 1
+--用户登录
+
+ALTER PROCEDURE [dbo].[sp_check_User_employee]
+(
+	--  1 登录
+	@type  int,
+	--用户名
+	@username varchar(10),
+	--密码
+	@userpwd varchar(32)
+)
+AS
+
+if @type = 1    --  前台登录
+BEGIN
+
+	select u.*,c.shortname from User_employee u inner join User_comp c on u.compid = c.compid 
+	where   u.emptype <> 1 and     u.LoginName = @username and u.pwd = @userpwd      and  u.RecStatus = 1
+	IF @@ROWCOUNT = 0
+		select '用户名或密码有误'  msg
+	ELSE
+		select '登录成功'	 msg
+	
+END
+else if @type = 2    --- 后台登录  emptype = 1 系统用户
+begin
+	select u.*,c.shortname from User_employee u inner join User_comp c on u.compid = c.compid
+	where ( u.emptype = 1 or u.emptype = 2  ) and u.LoginName = @username and u.pwd = @userpwd     and  u.RecStatus = 1
+	IF @@ROWCOUNT = 0
+		select '用户名或密码有误'  msg
+	ELSE
+		select '登录成功'	 msg
+
+end
+
+ 
+--06 sp_edit_User_ascription    修改用户的所属关系
+/*
+更新所属表
+*/
+
+ALTER PROCEDURE [dbo].[sp_edit_User_ascription] 
+(
+@mark    INTEGER ,   -- 0插入   1 更新     2 删除
+@compid   VARCHAR(10) ,
+@opid     VARCHAR(10) ,
+@edit_id  VARCHAR(10) ,
+@SaleCode VARCHAR(8000)  ,
+@compid_as  VARCHAR(100)
+)
+AS
+DECLARE @strReturnValue  VARCHAR(100)
+BEGIN
+if(@mark = 0)
+
+BEGIN
+if ( ISNULL(@SaleCode,'') <> '' )  -- salecode  不为空时 添加code  为空时添加 0 
+								BEGIN
+										DECLARE  @StringValue VARCHAR(20) 
+
+										-- 创建游标
+										DECLARE MyCursor CURSOR
+
+										FOR SELECT StringValue FROM parseJSON(@SaleCode)
+										-- 打开游标
+										OPEN MyCursor
+
+										FETCH NEXT FROM MyCursor INTO @StringValue
+										-- 判断是否结束
+										WHILE @@FETCH_STATUS =0
+
+										BEGIN
+
+											--sql代码块
+														declare @ids varchar(20)
+														select @ids=isnull(max(id),'0') from User_ascription  
+														if  @ids='0'
+															set @ids='00000001'
+														else
+															set @ids=right('00000000'+convert(varchar(8),convert(int,@ids)+1),8)
+										 
+											 
+														 
+																	insert into  User_ascription (id,opid,compid,SaleCode) VALUES (@ids,@opid,@compid,@StringValue)
+															 
+															 if @@rowcount = 0
+															 BEGIN 
+																		set @strReturnValue='添加人员所属关系信息失败！'
+																		 select @strReturnValue result  -- 
+																		Return 0
+															 end
+															 
+												 
+											FETCH NEXT FROM  MyCursor INTO @StringValue
+									 
+										END
+										 
+										CLOSE MyCursor --关闭游标
+										 
+										DEALLOCATE MyCursor --释放游标
+						end 
+            ELSE
+						BEGIN
+								set @strReturnValue='添加人员所属关系信息失败！'
+								 select @strReturnValue result  -- 
+								Return 0 
+						END
+						
+						set @strReturnValue='添加人员所属关系信息成功！'
+								 select @strReturnValue result  -- 
+								Return 0 
+END
+
+END 
+
+
+IF (@mark =1 )  -- 更新 
+
+BEGIN
+
+	SELECT  @StringValue = StringValue FROM parseJSON(@SaleCode)
+	UPDATE User_ascription set  salecode =@StringValue,compid= @compid   where  id =@edit_id
+
+IF @@rowcount  > 0 
+BEGIN
+	SELECT '更新成功' result 
+end ELSE
+BEGIN
+	SELECT '更新失败' result
+END
+ 
+
+END
+
+IF (@mark = 2 )   -- 删除  
+
+BEGIN
+	DELETE FROM User_ascription where  id  =@edit_id
+
+IF (@@rowcount> 0) 
+BEGIN
+	SELECT  '删除成功' result 
+end ELSE 
+BEGIN
+	SELECT '删除失败'  result
+END
+end 
+
