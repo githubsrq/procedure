@@ -1,0 +1,46 @@
+sp_InserUpdateDel_User_PermissionGroup  增删权限组  mark  = 4
+
+
+
+sp_Admin_Query_Comp   后台企业列表     mark =  1 加emptype  判断 
+
+
+sp_Admin_Employee_Query 后台用户列表    
+
+
+admin_user_add  添加用户下拉      mark = 123456    @PageSize*@currPage+1      mark = 2   PI_TypeCode  > @emptype  
+
+
+
+sp_check_User_employee  用户登录     @type= 1  u.emptype <> 1     @type = 2   u.emptype = 1 and u.emptype = 2            人员状态    and  RecStatus = 1
+
+ 
+sp_edit_User_ascription    修改用户的所属关系
+
+
+
+
+
+
+
+---- 前台 
+
+sp_Query_VM_WorkClassLog  司机排班  and vo.compid =  vs.compid
+
+
+sp_V_MP_StockInQuerylistsrq   原材料过磅查询    --     and  (StI_Status=1)    -- and u1.compid = v.compid
+
+
+sp_V_VM_PumpTruckPersonalWorksrq    mark = 3    and TSA.compid =PTW.compid 
+
+
+
+
+--- ying  
+
+sp_Query_Product_Total   生产查询统计    ORDER BY   TaskId desc, PreTime 
+
+sp_V_MP_StockInQuerylistsrq   原材料过磅查询详情     SecondTime
+
+
+ 
